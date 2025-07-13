@@ -1,119 +1,215 @@
-// import 'package:flutter_test/flutter_test.dart';
-// import 'package:flutter_core_network/flutter_core_network.dart';
+// test/base_api_service_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:flutter_core_network/flutter_core_network.dart';
+import 'models/user.dart';
 
-// void main() {
-//   group('ApiError', () {
-//     test('should create validation error with field errors', () {
-//       // Arrange
-//       final fieldErrors = {
-//         'email': ['Email is required', 'Email format is invalid'],
-//         'password': ['Password must be at least 8 characters'],
-//       };
+class MockNetworkService extends Mock implements NetworkService {}
 
-//       // Act
-//       final error = ApiError.validation(
-//         message: 'Validation failed',
-//         fieldErrors: fieldErrors,
-//         details: 'Form validation errors',
-//       );
+class TestUserService extends BaseApiService {
+  TestUserService({super.networkService});
 
-//       // Assert
-//       expect(error.code, equals('VALIDATION_ERROR'));
-//       expect(error.message, equals('Validation failed'));
-//       expect(error.isValidationError, isTrue);
-//       expect(error.fieldErrors, equals(fieldErrors));
-//       expect(error.formattedFieldErrors, isNotNull);
-//       expect(error.formattedFieldErrors, contains('email: Email is required'));
-//     });
+  Future<ApiResponse<List<User>>> getUsers() async {
+    return executeRequest<List<User>>(() async {
+      final response = await networkService.get<List<dynamic>>('/users');
+      return response
+          .map((json) => User.fromJson(json as Map<String, dynamic>))
+          .toList();
+    });
+  }
 
-//     test('should create authentication error', () {
-//       // Act
-//       final error = ApiError.authentication(
-//         message: 'Invalid credentials',
-//         details: 'Username or password is incorrect',
-//       );
+  Future<ApiResponse<User>> getUser(int id) async {
+    return executeRequest<User>(() async {
+      final response =
+          await networkService.get<Map<String, dynamic>>('/users/$id');
+      return User.fromJson(response);
+    });
+  }
 
-//       // Assert
-//       expect(error.code, equals('AUTHENTICATION_ERROR'));
-//       expect(error.message, equals('Invalid credentials'));
-//       expect(error.isAuthenticationError, isTrue);
-//       expect(error.userFriendlyMessage, equals('Please log in to continue'));
-//     });
+  Future<ApiResponse<User>> createUser(User user) async {
+    return executeRequest<User>(() async {
+      final response = await networkService.post<Map<String, dynamic>>(
+        '/users',
+        data: user.toJson(),
+      );
+      return User.fromJson(response);
+    });
+  }
+}
 
-//     test('should create server error with metadata', () {
-//       // Arrange
-//       final metadata = {
-//         'request_id': '12345',
-//         'timestamp': '2023-01-01T00:00:00Z',
-//       };
+void main() {
+  group('BaseApiService with JSONPlaceholder', () {
+    late TestUserService userService;
+    late MockNetworkService mockNetworkService;
 
-//       // Act
-//       final error = ApiError.server(
-//         message: 'Internal server error',
-//         details: 'Database connection failed',
-//         metadata: metadata,
-//       );
+    setUp(() {
+      mockNetworkService = MockNetworkService();
+      userService = TestUserService(networkService: mockNetworkService);
+    });
 
-//       // Assert
-//       expect(error.code, equals('SERVER_ERROR'));
-//       expect(error.message, equals('Internal server error'));
-//       expect(error.isServerError, isTrue);
-//       expect(error.metadata, equals(metadata));
-//       expect(error.userFriendlyMessage,
-//           equals('Something went wrong on our end. Please try again later'));
-//     });
+    group('User Operations', () {
+      test('should return users list when API call succeeds', () async {
+        // Arrange
+        final mockUsersData = [
+          {
+            "id": 1,
+            "name": "Leanne Graham",
+            "username": "Bret",
+            "email": "Sincere@april.biz",
+            "address": {
+              "street": "Kulas Light",
+              "suite": "Apt. 556",
+              "city": "Gwenborough",
+              "zipcode": "92998-3874",
+              "geo": {"lat": "-37.3159", "lng": "81.1496"}
+            },
+            "phone": "1-770-736-8031 x56442",
+            "website": "hildegard.org",
+            "company": {
+              "name": "Romaguera-Crona",
+              "catchPhrase": "Multi-layered client-server neural-net",
+              "bs": "harness real-time e-markets"
+            }
+          }
+        ];
 
-//     test('should serialize to and from JSON', () {
-//       // Arrange
-//       final originalError = ApiError.validation(
-//         message: 'Validation failed',
-//         fieldErrors: {
-//           'email': ['Required']
-//         },
-//       );
+        when(() => mockNetworkService.get<List<dynamic>>('/users'))
+            .thenAnswer((_) async => mockUsersData);
 
-//       // Act
-//       final json = originalError.toJson();
-//       final deserializedError = ApiError.fromJson(json);
+        // Act
+        final result = await userService.getUsers();
 
-//       // Assert
-//       expect(deserializedError.code, equals(originalError.code));
-//       expect(deserializedError.message, equals(originalError.message));
-//       expect(deserializedError.fieldErrors, equals(originalError.fieldErrors));
-//     });
-//   });
+        // Assert
+        expect(result.success, isTrue);
+        expect(result.data?.length, equals(1));
+        expect(result.data?.first.name, equals('Leanne Graham'));
+        expect(result.data?.first.email, equals('Sincere@april.biz'));
+      });
 
-//   group('ApiResponse with ApiError', () {
-//     test('should create validation error response', () {
-//       // Arrange
-//       final fieldErrors = {
-//         'email': ['Required']
-//       };
+      test('should return single user when API call succeeds', () async {
+        // Arrange
+        final mockUserData = {
+          "id": 1,
+          "name": "Leanne Graham",
+          "username": "Bret",
+          "email": "Sincere@april.biz",
+          "address": {
+            "street": "Kulas Light",
+            "suite": "Apt. 556",
+            "city": "Gwenborough",
+            "zipcode": "92998-3874",
+            "geo": {"lat": "-37.3159", "lng": "81.1496"}
+          },
+          "phone": "1-770-736-8031 x56442",
+          "website": "hildegard.org",
+          "company": {
+            "name": "Romaguera-Crona",
+            "catchPhrase": "Multi-layered client-server neural-net",
+            "bs": "harness real-time e-markets"
+          }
+        };
 
-//       // Act
-//       final response = ApiResponse<User>.validationError(
-//         message: 'Validation failed',
-//         fieldErrors: fieldErrors,
-//       );
+        when(() => mockNetworkService.get<Map<String, dynamic>>('/users/1'))
+            .thenAnswer((_) async => mockUserData);
 
-//       // Assert
-//       expect(response.success, isFalse);
-//       expect(response.hasValidationErrors, isTrue);
-//       expect(response.error?.fieldErrors, equals(fieldErrors));
-//       expect(response.statusCode, equals(422));
-//     });
+        // Act
+        final result = await userService.getUser(1);
 
-//     test('should create authentication error response', () {
-//       // Act
-//       final response = ApiResponse<User>.authenticationError(
-//         message: 'Token expired',
-//       );
+        // Assert
+        expect(result.success, isTrue);
+        expect(result.data?.id, equals(1));
+        expect(result.data?.name, equals('Leanne Graham'));
+      });
 
-//       // Assert
-//       expect(response.success, isFalse);
-//       expect(response.hasAuthenticationError, isTrue);
-//       expect(response.error?.code, equals('AUTHENTICATION_ERROR'));
-//       expect(response.statusCode, equals(401));
-//     });
-//   });
-// }
+      test('should create user when API call succeeds', () async {
+        // Arrange
+        const newUser = User(
+          id: 0,
+          name: 'John Doe',
+          username: 'johndoe',
+          email: 'john@example.com',
+          phone: '123-456-7890',
+          website: 'johndoe.com',
+          address: Address(
+            street: '123 Main St',
+            suite: 'Apt 1',
+            city: 'Anytown',
+            zipcode: '12345',
+            geo: Geo(lat: '40.7128', lng: '-74.0060'),
+          ),
+          company: Company(
+            name: 'John Corp',
+            catchPhrase: 'Innovation at its best',
+            bs: 'revolutionary solutions',
+          ),
+        );
+
+        final createdUserData = {"id": 11, ...newUser.toJson()};
+
+        when(() => mockNetworkService.post<Map<String, dynamic>>(
+              '/users',
+              data: newUser.toJson(),
+            )).thenAnswer((_) async => createdUserData);
+
+        // Act
+        final result = await userService.createUser(newUser);
+
+        // Assert
+        expect(result.success, isTrue);
+        expect(result.data?.id, equals(11));
+        expect(result.data?.name, equals('John Doe'));
+      });
+    });
+
+    group('Error Handling', () {
+      test('should return validation error response when validation fails',
+          () async {
+        // Arrange
+        when(() => mockNetworkService.get<List<dynamic>>('/users'))
+            .thenThrow(const ValidationException(
+          'Validation failed',
+          errors: {
+            'email': ['Required']
+          },
+        ));
+
+        // Act
+        final result = await userService.getUsers();
+
+        // Assert
+        expect(result.success, isFalse);
+        expect(result.hasValidationErrors, isTrue);
+        expect(result.error?.fieldErrors?['email'], contains('Required'));
+      });
+
+      test('should return authentication error response', () async {
+        // Arrange
+        when(() => mockNetworkService.get<Map<String, dynamic>>('/users/1'))
+            .thenThrow(const UnauthorizedException('Token expired'));
+
+        // Act
+        final result = await userService.getUser(1);
+
+        // Assert
+        expect(result.success, isFalse);
+        expect(result.hasAuthenticationError, isTrue);
+        expect(result.error?.code, equals('AUTHENTICATION_ERROR'));
+        expect(result.statusCode, equals(401));
+      });
+
+      test('should return server error response', () async {
+        // Arrange
+        when(() => mockNetworkService.get<List<dynamic>>('/users')).thenThrow(
+            const ServerException('Internal server error', statusCode: 500));
+
+        // Act
+        final result = await userService.getUsers();
+
+        // Assert
+        expect(result.success, isFalse);
+        expect(result.error?.isServerError, isTrue);
+        expect(result.statusCode, equals(500));
+      });
+    });
+  });
+}
