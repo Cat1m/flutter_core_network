@@ -1,7 +1,7 @@
 /// Flutter Core Network Service
 ///
 /// A comprehensive network service package for Flutter applications.
-/// 
+///
 /// This package provides:
 /// - HTTP client with Dio
 /// - Request/Response interceptors
@@ -13,17 +13,17 @@
 /// - Automatic token management
 ///
 /// ## Usage
-/// 
+///
 /// ```dart
 /// import 'package:flutter_core_network/flutter_core_network.dart';
-/// 
+///
 /// // Initialize the service
 /// NetworkService.initialize(
 ///   baseUrl: 'https://api.example.com',
 ///   connectTimeout: Duration(seconds: 30),
 ///   enableLogging: true,
 /// );
-/// 
+///
 /// // Use the service
 /// final networkService = NetworkService.instance;
 /// final response = await networkService.get('/users');
