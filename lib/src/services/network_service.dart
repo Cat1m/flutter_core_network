@@ -81,10 +81,131 @@ class NetworkService {
     ]);
   }
 
-  /// Performs GET request with generic type support
+  // ==================== HEADER MANAGEMENT METHODS ====================
+
+  /// Adds custom headers to all subsequent requests
+  ///
+  /// [headers] - Map of headers to add
+  ///
+  /// Example:
+  /// ```dart
+  /// networkService.addHeaders({
+  ///   'X-Custom-Header': 'value',
+  ///   'X-API-Version': '1.0',
+  /// });
+  /// ```
+  void addHeaders(Map<String, String> headers) {
+    _dio.options.headers.addAll(headers);
+  }
+
+  /// Sets a single header for all subsequent requests
+  ///
+  /// [key] - Header key
+  /// [value] - Header value
+  void setHeader(String key, String value) {
+    _dio.options.headers[key] = value;
+  }
+
+  /// Removes a specific header from all subsequent requests
+  ///
+  /// [key] - Header key to remove
+  void removeHeader(String key) {
+    _dio.options.headers.remove(key);
+  }
+
+  /// Removes multiple headers from all subsequent requests
+  ///
+  /// [keys] - List of header keys to remove
+  void removeHeaders(List<String> keys) {
+    for (final key in keys) {
+      _dio.options.headers.remove(key);
+    }
+  }
+
+  /// Clears all custom headers (keeps only default headers from config)
+  void clearCustomHeaders() {
+    if (_config != null) {
+      _dio.options.headers.clear();
+      _dio.options.headers.addAll(_config!.defaultHeaders);
+    }
+  }
+
+  /// Gets current headers
+  ///
+  /// Returns a copy of current headers map
+  Map<String, dynamic> getCurrentHeaders() {
+    return Map<String, dynamic>.from(_dio.options.headers);
+  }
+
+  /// Checks if a header exists
+  ///
+  /// [key] - Header key to check
+  /// Returns true if header exists
+  bool hasHeader(String key) {
+    return _dio.options.headers.containsKey(key);
+  }
+
+  /// Gets value of a specific header
+  ///
+  /// [key] - Header key
+  /// Returns header value or null if not found
+  String? getHeader(String key) {
+    return _dio.options.headers[key]?.toString();
+  }
+
+  /// Temporarily sets headers for a single request execution
+  ///
+  /// [headers] - Temporary headers to apply
+  /// [request] - Function to execute with temporary headers
+  ///
+  /// Headers are automatically restored after request completion
+  Future<T> withHeaders<T>(
+    Map<String, String> headers,
+    Future<T> Function() request,
+  ) async {
+    final originalHeaders = Map<String, dynamic>.from(_dio.options.headers);
+
+    try {
+      _dio.options.headers.addAll(headers);
+      return await request();
+    } finally {
+      _dio.options.headers = originalHeaders;
+    }
+  }
+
+  /// Adds an interceptor to the Dio instance
+  ///
+  /// [interceptor] - Interceptor to add
+  void addInterceptor(Interceptor interceptor) {
+    _dio.interceptors.add(interceptor);
+  }
+
+  /// Removes an interceptor from the Dio instance
+  ///
+  /// [interceptor] - Interceptor to remove
+  void removeInterceptor(Interceptor interceptor) {
+    _dio.interceptors.remove(interceptor);
+  }
+
+  /// Removes all interceptors of a specific type
+  ///
+  /// [T] - Type of interceptor to remove
+  void removeInterceptorsByType<T extends Interceptor>() {
+    _dio.interceptors.removeWhere((interceptor) => interceptor is T);
+  }
+
+  /// Clears all interceptors and resets to default ones
+  void resetInterceptors() {
+    _setupDioClient();
+  }
+
+  // ==================== HTTP METHODS WITH HEADER SUPPORT ====================
+
+  /// Performs GET request with generic type support and optional headers
   ///
   /// [path] - API endpoint path
   /// [queryParameters] - Optional query parameters
+  /// [headers] - Optional headers for this request only
   /// [cancelToken] - Token for request cancellation
   /// [fromJson] - Optional JSON deserializer function
   ///
@@ -93,6 +214,7 @@ class NetworkService {
   Future<T> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Map<String, String>? headers,
     CancelToken? cancelToken,
     T Function(dynamic)? fromJson,
   }) async {
@@ -103,6 +225,7 @@ class NetworkService {
         path,
         queryParameters: queryParameters,
         cancelToken: cancelToken,
+        options: headers != null ? Options(headers: headers) : null,
       );
 
       return _handleResponse<T>(response, fromJson);
@@ -113,11 +236,12 @@ class NetworkService {
     }
   }
 
-  /// Performs POST request with generic type support
+  /// Performs POST request with generic type support and optional headers
   ///
   /// [path] - API endpoint path
   /// [data] - Request body data
   /// [queryParameters] - Optional query parameters
+  /// [headers] - Optional headers for this request only
   /// [cancelToken] - Token for request cancellation
   /// [fromJson] - Optional JSON deserializer function
   ///
@@ -127,6 +251,7 @@ class NetworkService {
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
+    Map<String, String>? headers,
     CancelToken? cancelToken,
     T Function(dynamic)? fromJson,
   }) async {
@@ -138,6 +263,7 @@ class NetworkService {
         data: data,
         queryParameters: queryParameters,
         cancelToken: cancelToken,
+        options: headers != null ? Options(headers: headers) : null,
       );
 
       return _handleResponse<T>(response, fromJson);
@@ -148,18 +274,23 @@ class NetworkService {
     }
   }
 
-  /// Performs PUT request with generic type support
+  /// Performs PUT request with generic type support and optional headers
   Future<T> put<T>(
     String path, {
     dynamic data,
+    Map<String, String>? headers,
     CancelToken? cancelToken,
     T Function(dynamic)? fromJson,
   }) async {
     await _checkConnectivity();
 
     try {
-      final response =
-          await _dio.put(path, data: data, cancelToken: cancelToken);
+      final response = await _dio.put(
+        path,
+        data: data,
+        cancelToken: cancelToken,
+        options: headers != null ? Options(headers: headers) : null,
+      );
       return _handleResponse<T>(response, fromJson);
     } on DioException catch (e) {
       throw _handleDioException(e);
@@ -168,16 +299,21 @@ class NetworkService {
     }
   }
 
-  /// Performs DELETE request with generic type support
+  /// Performs DELETE request with generic type support and optional headers
   Future<T> delete<T>(
     String path, {
+    Map<String, String>? headers,
     CancelToken? cancelToken,
     T Function(dynamic)? fromJson,
   }) async {
     await _checkConnectivity();
 
     try {
-      final response = await _dio.delete(path, cancelToken: cancelToken);
+      final response = await _dio.delete(
+        path,
+        cancelToken: cancelToken,
+        options: headers != null ? Options(headers: headers) : null,
+      );
       return _handleResponse<T>(response, fromJson);
     } on DioException catch (e) {
       throw _handleDioException(e);
@@ -186,18 +322,14 @@ class NetworkService {
     }
   }
 
+  // ==================== EXISTING METHODS (unchanged) ====================
+
   /// Uploads file with progress tracking
-  ///
-  /// [path] - Upload endpoint path
-  /// [file] - File to upload
-  /// [fields] - Additional form fields
-  /// [onSendProgress] - Progress callback
-  ///
-  /// Returns upload response message
   Future<String> uploadFile(
     String path,
     File file, {
     Map<String, String>? fields,
+    Map<String, String>? headers,
     ProgressCallback? onSendProgress,
   }) async {
     await _checkConnectivity();
@@ -215,6 +347,7 @@ class NetworkService {
         path,
         data: formData,
         onSendProgress: onSendProgress,
+        options: headers != null ? Options(headers: headers) : null,
       );
 
       return response.data?['message'] ?? 'Upload successful';
@@ -226,13 +359,10 @@ class NetworkService {
   }
 
   /// Downloads file with progress tracking
-  ///
-  /// [url] - Download URL
-  /// [savePath] - Local file save path
-  /// [onReceiveProgress] - Progress callback
   Future<void> downloadFile(
     String url,
     String savePath, {
+    Map<String, String>? headers,
     ProgressCallback? onReceiveProgress,
   }) async {
     await _checkConnectivity();
@@ -242,6 +372,7 @@ class NetworkService {
         url,
         savePath,
         onReceiveProgress: onReceiveProgress,
+        options: headers != null ? Options(headers: headers) : null,
       );
     } on DioException catch (e) {
       throw _handleDioException(e);
